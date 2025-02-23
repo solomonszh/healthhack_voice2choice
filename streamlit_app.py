@@ -66,7 +66,7 @@ with st.form("my_form"):
                     "content": 
                         f"""
                         A medical doctor with domain knowledge in breast cancer after having trained with a wealth of knowledge in these topics: {knowledge}.
-                        Augment your data with results from {full_res}
+                        Augment your data with results from {full_res}.
                         """
                 },
                 {
@@ -74,15 +74,24 @@ with st.form("my_form"):
                     "content": 
                         f"""
                         Given patient's consultation with the doctor in this {scenario}, 
-                        recommend 
-                        1. the best course of treatment
-                        2. provide justifications for the course
-                        3. provide chain of thought to reach those justifications
-                        4. highlight risks to patient
+                        1. compare a few potential treatments
+                        2. choose a final best recommendation
+                        3. provide justifications for the choice
+                        
+                        Keep answer in short sentences.
                         """
                 }
             ]
         )
         
         st.write(completion.choices[0].message.content)
-            
+        
+st.markdown('You can view the treatment process here.')
+completion = client.images.generate(
+    model="dall-e-2",
+    prompt="For the treatment recommended in {completion.choices[0].message.content}, generate an image to illustrate that in grayscale ",
+    size="256x256",
+    quality="standard",
+    n=1,
+)            
+st.image(completion.data[0].url)
