@@ -11,7 +11,7 @@ if not os.environ.get("OPENAI_API_KEY"):
 from openai import OpenAI
 
 from langchain.docstore.document import Document
-from langchain.document_loaders import TextLoader, Docx2txtLoader, DirectoryLoader, UnstructuredWordDocumentLoader
+from langchain.document_loaders import TextLoader, Docx2txtLoader, DirectoryLoader, UnstructuredWordDocumentLoader, UnstructuredExcelLoader, CSVLoader
 from langchain.text_splitter import CharacterTextSplitter, SpacyTextSplitter, RecursiveCharacterTextSplitter
 from langchain.embeddings.openai import OpenAIEmbeddings
 
@@ -20,6 +20,7 @@ from langchain_iris import IRISVector
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
+response = ''
 username = 'demo'
 password = 'demo' 
 hostname = os.getenv('IRIS_HOSTNAME', 'localhost')
@@ -27,10 +28,9 @@ port = '1972'
 namespace = 'USER'
 CONNECTION_STRING = f"iris://{username}:{password}@{hostname}:{port}/{namespace}"
 # Under the hood, this becomes a SQL table. CANNOT have '.' in the name
+
 COLLECTION_NAME = "cancer_db"
-
 # Subsequent calls to reconnect to the database and make searches should use this.  
-
 db = IRISVector(
     embedding_function=embeddings,
     dimension=1536,
@@ -84,14 +84,25 @@ with st.form("my_form"):
             ]
         )
         
-        st.write(completion.choices[0].message.content)
+        response = completion.choices[0].message.content
+        st.write(response)
         
-st.markdown('You can view the treatment process here.')
-completion = client.images.generate(
-    model="dall-e-2",
-    prompt="For the treatment recommended in {completion.choices[0].message.content}, generate an image to illustrate that in grayscale ",
-    size="256x256",
-    quality="standard",
-    n=1,
-)            
-st.image(completion.data[0].url)
+if response:
+    st.markdown('You can view the treatment process here.')
+
+    loader = CSVLoader('data/treatment_selection.csv')#, csv_args={'fieldnames':['']})
+    docs = loader.load()
+    len(docs)
+
+    COLLECTION_NAME = "pictures_db"
+    # This creates a persistent vector store (a SQL table). You should run this ONCE only
+    db1 = IRISVector.from_documents(
+        embedding=embeddings,
+        documents=docs,
+        collection_name=COLLECTION_NAME,
+        connection_string=CONNECTION_STRING,
+    )
+
+    docs_with_score = db1.similarity_search_with_score(completion.choices[0].message.content, 1)
+    image_chosen = docs_with_score[0][0].page_content.split('\n')[-1].split(': ')[-1] + ".jpeg"
+    st.image(f'data/{image_chosen}')

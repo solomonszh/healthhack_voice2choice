@@ -1,0 +1,13 @@
+﻿surgery_type,benefit,consideration,tag
+lumpectomy,small cut; shorter recovery; conserve shape; suitable for early-stage,additional radiotherapy cost; possibility of 2nd surgery; longer treatment process,img1
+lumpectomy,small cut; conserve shape,post-surgical radiotherapy; possibility of 2nd surgery,img2
+mastectomy,fewer extra surferies; rarely requires radiotherapy,complete breast removal; longer initial recovery,img3
+lumpectomy,small cut; shorter recovery; conserve shape; drainless recovery,additional radiotherapy cost; possibility of 2nd surgery; longer treatment process,img4
+lumpectomy,small cut; shorter recovery; conserve shape; suitable for early-stage,additional radiotherapy; possibility of 2nd surgery,img5
+mastectomy,reduced local recurrence risk; mostly no radiotherapy; one-time surgery,permanent breast removal; needs drain management; longer recovery time,img6
+lumpectomy,small cut; shorter recovery; conserve shape; drainless recovery,additional radiotherapy; possibility of 2nd surgery; multiple hospital visits; longer treatment process,img7
+lumpectomy,small cut; shorter recovery; conserve shape; drainless recovery,additional radiotherapy; 5-15% chance of 2nd surgery; multiple hospital visits,img8
+mastectomy,reduced local recurrence risk; rarely requires radiotherapy,permanent breast removal; needs drain management; longer recovery time,img9
+lumpectomy,small cut; shorter recovery; conserve shape; drainless recovery,additional radiotherapy cost; possibility of 2nd surgery; multiple hospital visits,img10
+mastectomy,reduced local recurrence risk; mostly no radiotherapy; stress-free one-time surgery,permanent breast removal; needs drain management; longer recovery time,img11
+mastectomy,reduced local recurrence risk; mostly no radiotherapy,permanent breast removal; needs drain management; physically demanding post-op recovery; more extensive surfery,img12
