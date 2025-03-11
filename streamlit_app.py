@@ -112,8 +112,8 @@ def get_data():
     # List all .docx files in the folder
     word_files = [f for f in os.listdir(folder_path) if f.endswith(".docx") and 'knowledge' not in f]
 
-    # Initialize ChromaDB client
-    chromadb_client = chromadb.PersistentClient(path="./chroma_db")
+    # # Initialize ChromaDB client
+    chromadb_client = chromadb.Client(path="./chroma_db")#PersistentClient
     db = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
 
     # Text splitter for chunking documents
