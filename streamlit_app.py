@@ -1,7 +1,3 @@
-import(‘pysqlite3’)
-import sys
-sys.modules[‘sqlite3’] = sys.modules.pop(‘pysqlite3’)
-
 import streamlit as st
 import getpass
 import os
@@ -19,7 +15,7 @@ from langchain.document_loaders import TextLoader, Docx2txtLoader, DirectoryLoad
 from langchain.text_splitter import CharacterTextSplitter, SpacyTextSplitter, RecursiveCharacterTextSplitter
 from langchain.embeddings.openai import OpenAIEmbeddings
 
-# from langchain_iris import IRISVector
+from langchain_iris import IRISVector
 
 import os
 import chromadb
@@ -27,13 +23,13 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from docx import Document  # For reading .docx files
 
-# Function to extract text from a Word document
-def load_word_document(file_path):
-    doc = Document(file_path)
-    text = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
-    return text
+# # Function to extract text from a Word document
+# def load_word_document(file_path):
+#     doc = Document(file_path)
+#     text = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+#     return text
 
-import pandas as pd
+# import pandas as pd
 
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
@@ -44,21 +40,21 @@ def get_response(main_db, main_embeddings, main_scenario):
     knowledge = f.read()
         
     embedding_vector = main_embeddings.embed_query(main_scenario)
-    # res = main_db.similarity_search_by_vector(embedding_vector)
+    res = main_db.similarity_search_by_vector(embedding_vector)
 
-    # Retrieve top 5 most similar results
-    results = main_db.query(
-        query_embeddings=[embedding_vector],  # Query embedding
-        n_results=5  # Number of similar documents to retrieve
-    )
+    # # Retrieve top 5 most similar results
+    # results = main_db.query(
+    #     query_embeddings=[embedding_vector],  # Query embedding
+    #     n_results=5  # Number of similar documents to retrieve
+    # )
 
-    # full_res = ''
-    # for each_res in res:
-    #     full_res = full_res + '\n\n' +each_res.page_content
-            
     full_res = ''
-    for each_res in results['documents'][0]:
-        full_res = full_res + '\n\n' +each_res
+    for each_res in res:
+        full_res = full_res + '\n\n' +each_res.page_content
+            
+    # full_res = ''
+    # for each_res in results['documents'][0]:
+    #     full_res = full_res + '\n\n' +each_res
                 
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -91,90 +87,90 @@ def get_response(main_db, main_embeddings, main_scenario):
     return response
         
 text_response = ''
-# username = 'demo'
-# password = 'demo' 
-# hostname = os.getenv('IRIS_HOSTNAME', 'localhost')
-# port = '1972' 
-# namespace = 'USER'
-# CONNECTION_STRING = f'iris://{username}:{password}@{hostname}:{port}/{namespace}'
-# # Under the hood, this becomes a SQL table. CANNOT have '.' in the name
+username = 'demo'
+password = 'demo' 
+hostname = os.getenv('IRIS_HOSTNAME', 'localhost')
+port = '1972' 
+namespace = 'USER'
+CONNECTION_STRING = f'iris://{username}:{password}@{hostname}:{port}/{namespace}'
+# Under the hood, this becomes a SQL table. CANNOT have '.' in the name
 
-# COLLECTION_NAME = 'cancer_db'
-# # Subsequent calls to reconnect to the database and make searches should use this.  
-# db = IRISVector(
-#     embedding_function=embeddings,
-#     dimension=1536,
-#     collection_name=COLLECTION_NAME,
-#     connection_string=CONNECTION_STRING,
-# )
-@st.cache_resource
-def get_data():
-    COLLECTION_NAME = "cancer_db"
-    # Directory containing multiple Word documents
-    folder_path = "data"  # Change this to your actual folder path
+COLLECTION_NAME = 'cancer_db'
+# Subsequent calls to reconnect to the database and make searches should use this.  
+db = IRISVector(
+    embedding_function=embeddings,
+    dimension=1536,
+    collection_name=COLLECTION_NAME,
+    connection_string=CONNECTION_STRING,
+)
+# @st.cache_resource
+# def get_data():
+#     COLLECTION_NAME = "cancer_db"
+#     # Directory containing multiple Word documents
+#     folder_path = "data"  # Change this to your actual folder path
 
-    # List all .docx files in the folder
-    word_files = [f for f in os.listdir(folder_path) if f.endswith(".docx") and 'knowledge' not in f]
+#     # List all .docx files in the folder
+#     word_files = [f for f in os.listdir(folder_path) if f.endswith(".docx") and 'knowledge' not in f]
 
-    # # Initialize ChromaDB client
-    chromadb_client = chromadb.Client(path="./chroma_db")#PersistentClient
-    db = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
+#     # # Initialize ChromaDB client
+#     chromadb_client = chromadb.Client(path="./chroma_db")#PersistentClient
+#     db = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
 
-    # Text splitter for chunking documents
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=2500, chunk_overlap=250)
+#     # Text splitter for chunking documents
+#     text_splitter = RecursiveCharacterTextSplitter(chunk_size=2500, chunk_overlap=250)
 
-    # Process each Word document
-    doc_id = 0
-    for file_name in word_files:
-        file_path = os.path.join(folder_path, file_name)
-        print(f"Processing: {file_name}")
+#     # Process each Word document
+#     doc_id = 0
+#     for file_name in word_files:
+#         file_path = os.path.join(folder_path, file_name)
+#         print(f"Processing: {file_name}")
         
-        # Load and split text
-        document_text = load_word_document(file_path)
-        doc_chunks = text_splitter.split_text(document_text)
+#         # Load and split text
+#         document_text = load_word_document(file_path)
+#         doc_chunks = text_splitter.split_text(document_text)
         
-        # Generate embeddings
-        actual_embeddings = embeddings.embed_documents(doc_chunks)
+#         # Generate embeddings
+#         actual_embeddings = embeddings.embed_documents(doc_chunks)
 
-        # Add to ChromaDB
-        db.add(
-            ids=[f"{doc_id}_{i}" for i in range(len(doc_chunks))],  # Unique IDs
-            documents=doc_chunks,  # Text chunks
-            embeddings=actual_embeddings  # Corresponding embeddings
-        )
+#         # Add to ChromaDB
+#         db.add(
+#             ids=[f"{doc_id}_{i}" for i in range(len(doc_chunks))],  # Unique IDs
+#             documents=doc_chunks,  # Text chunks
+#             embeddings=actual_embeddings  # Corresponding embeddings
+#         )
 
-        doc_id += 1
+#         doc_id += 1
 
-    # print(f"Successfully added {len(word_files)} documents to ChromaDB!")
+#     # print(f"Successfully added {len(word_files)} documents to ChromaDB!")
 
-    treatment_selection = pd.read_csv('data/treatment_selection.csv')
-    treatment_selection['content'] = treatment_selection['surgery_type'] + ' ' + treatment_selection['benefit'] + ' ' + treatment_selection['consideration'] + ' ' + treatment_selection['tag']
-    texts = treatment_selection['content'].dropna().tolist()  # Remove NaN values and convert to a list
+#     treatment_selection = pd.read_csv('data/treatment_selection.csv')
+#     treatment_selection['content'] = treatment_selection['surgery_type'] + ' ' + treatment_selection['benefit'] + ' ' + treatment_selection['consideration'] + ' ' + treatment_selection['tag']
+#     texts = treatment_selection['content'].dropna().tolist()  # Remove NaN values and convert to a list
         
-    COLLECTION_NAME = "pictures_db"
+#     COLLECTION_NAME = "pictures_db"
 
-    db1 = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
+#     db1 = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
 
-    # Text splitter for chunking documents
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+#     # Text splitter for chunking documents
+#     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
 
-    # Process text into chunks and embeddings
-    doc_id = 0
-    for text in texts:
-        chunks = text_splitter.split_text(text)  # Split text into smaller chunks
-        actual_embeddings = embeddings.embed_documents(chunks)  # Generate embeddings
+#     # Process text into chunks and embeddings
+#     doc_id = 0
+#     for text in texts:
+#         chunks = text_splitter.split_text(text)  # Split text into smaller chunks
+#         actual_embeddings = embeddings.embed_documents(chunks)  # Generate embeddings
         
-        # Add chunks to ChromaDB
-        db1.add(
-            ids=[f"{doc_id}_{i}" for i in range(len(chunks))],  # Unique IDs
-            documents=chunks,  # Text chunks
-            embeddings=actual_embeddings  # Corresponding embeddings
-        )
+#         # Add chunks to ChromaDB
+#         db1.add(
+#             ids=[f"{doc_id}_{i}" for i in range(len(chunks))],  # Unique IDs
+#             documents=chunks,  # Text chunks
+#             embeddings=actual_embeddings  # Corresponding embeddings
+#         )
         
-        doc_id += 1
-    return db, db1
+#         doc_id += 1
+#     return db, db1
         
-db, db1 = get_data()
+# db, db1 = get_data()
 
 st.title('Voice2Choice Beta')
 
@@ -218,29 +214,29 @@ if text_response:
     docs = loader.load()
     len(docs)
 
-    # COLLECTION_NAME = "pictures_db"
-    # # This creates a persistent vector store (a SQL table). You should run this ONCE only
-    # db1 = IRISVector.from_documents(
-    #     embedding=embeddings,
-    #     documents=docs,
-    #     collection_name=COLLECTION_NAME,
-    #     connection_string=CONNECTION_STRING,
-    # )
+    COLLECTION_NAME = "pictures_db"
+    # This creates a persistent vector store (a SQL table). You should run this ONCE only
+    db1 = IRISVector.from_documents(
+        embedding=embeddings,
+        documents=docs,
+        collection_name=COLLECTION_NAME,
+        connection_string=CONNECTION_STRING,
+    )
 
     # print(f"Successfully added {len(texts)} rows (split into chunks) to ChromaDB!")    
     
-    # docs_with_score = db1.similarity_search_with_score(text_response, 1)
-    # image_chosen = docs_with_score[0][0].page_content.split('\n')[-1].split(': ')[-1] + ".jpeg"
+    docs_with_score = db1.similarity_search_with_score(text_response, 1)
+    image_chosen = docs_with_score[0][0].page_content.split('\n')[-1].split(': ')[-1] + ".jpeg"
     
-    # Perform a similarity search
-    query_embedding = embeddings.embed_query(text_response)  # Generate embedding for the query
+    # # Perform a similarity search
+    # query_embedding = embeddings.embed_query(text_response)  # Generate embedding for the query
 
-    # Retrieve top 5 most similar results
-    results = db1.query(
-        query_embeddings=[query_embedding],  # Query embedding
-        n_results=1  # Number of similar documents to retrieve
-    )
+    # # Retrieve top 5 most similar results
+    # results = db1.query(
+    #     query_embeddings=[query_embedding],  # Query embedding
+    #     n_results=1  # Number of similar documents to retrieve
+    # )
         
-    image_chosen = results["documents"][0][0].split(' ')[-1] + ".jpeg"        
+    # image_chosen = results["documents"][0][0].split(' ')[-1] + ".jpeg"        
     
     st.image(f'data/{image_chosen}')
