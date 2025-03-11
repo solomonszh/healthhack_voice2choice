@@ -135,7 +135,6 @@ llama-parse==0.4.9
 loguru==0.7.3
 lxml==5.3.1
 marisa-trie==1.2.1
-markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 marshmallow==3.26.1
 matplotlib-inline==0.1.7
