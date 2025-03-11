@@ -220,7 +220,6 @@ requests-oauthlib==2.0.0
 requests-toolbelt==1.0.0
 rfc3339-validator==0.1.4
 rfc3986-validator==0.1.1
-rich==13.9.4
 rpds-py==0.23.1
 rsa==4.9
 safetensors==0.5.2
