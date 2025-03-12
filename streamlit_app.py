@@ -77,6 +77,7 @@ def get_response(main_db, main_embeddings, main_scenario):
                     3. provide justifications for the choice
                     
                     Keep answer in short sentences.
+                    Detect the language and if it is in Chinese, reply in Chinese
                     """
             }
         ]
@@ -187,12 +188,16 @@ if option == 'Audio':
     if audio_value:
         recording = st.audio(audio_value)
         
+        st.subheader('Recommendation:')
         transcription = client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_value
         )
         scenario = transcription.text
+        st.subheader('Consultation Scenario:')
+        st.write(scenario)
         
+        st.subheader('Recommendation:')
         text_response = get_response(db, embeddings, scenario)
         st.write(text_response)
     
