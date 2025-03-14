@@ -11,5 +11,5 @@ python-dotenv
 pandas
 ipykernel
 setuptools
-chrombadb
+chromadb
 streamlit
