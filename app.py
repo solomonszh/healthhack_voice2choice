@@ -34,7 +34,7 @@ from docx import Document  # For reading .docx files
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
-def get_response(main_db, main_embeddings, main_scenario):
+def get_response(main_db, main_embeddings, main_scenario, audio):
     f = open('data/knowledge.docx', 'r', encoding='ISO-8859-1')
     # query = "new technology"
     knowledge = f.read()
@@ -55,8 +55,8 @@ def get_response(main_db, main_embeddings, main_scenario):
     # full_res = ''
     # for each_res in results['documents'][0]:
     #     full_res = full_res + '\n\n' +each_res
-                
-    completion = client.chat.completions.create(
+    if audio:
+        completion = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
@@ -77,7 +77,59 @@ def get_response(main_db, main_embeddings, main_scenario):
                     3. provide justifications for the choice
                     
                     Keep answer in short sentences.
-                    Detect the language and if it is in Chinese, reply in Chinese
+                    Ensure it is transcribed to English. 
+                    """
+            }
+        ]
+    )
+    else:
+        completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": 
+                            f"""
+                            A medical doctor with domain knowledge in breast cancer after having trained with a wealth of knowledge in these topics: {knowledge}.
+                            Augment your data with results from {full_res}.
+                            """
+                    },
+                    {
+                        "role": "user",
+                        "content": 
+                            f"""
+                            Given patient's consultation with the doctor in this {main_scenario}, 
+                            1. compare a few potential treatments
+                            2. choose a final best recommendation
+                            3. provide justifications for the choice
+                            
+                            Keep answer in short sentences.
+                            Detect the language so that for example, if it is in Chinese, reply in Chinese
+                            """
+                    }
+                ]
+            )
+                    
+    response = completion.choices[0].message.content
+    
+    return response
+ 
+def get_language(main_scenario):                        
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system", 
+                "content": 
+                    f"""
+                    Language Detector
+                    """
+            },
+            {
+                "role": "user",
+                "content": 
+                    f"""
+                    Returns the language used in {main_scenario}, 
                     """
             }
         ]
@@ -86,8 +138,9 @@ def get_response(main_db, main_embeddings, main_scenario):
     response = completion.choices[0].message.content
     
     return response
-        
+         
 text_response = ''
+language = 'English'
 username = 'demo'
 password = 'demo' 
 hostname = os.getenv('IRIS_HOSTNAME', 'localhost')
@@ -104,74 +157,6 @@ db = IRISVector(
     collection_name=COLLECTION_NAME,
     connection_string=CONNECTION_STRING,
 )
-# @st.cache_resource
-# def get_data():
-#     COLLECTION_NAME = "cancer_db"
-#     # Directory containing multiple Word documents
-#     folder_path = "data"  # Change this to your actual folder path
-
-#     # List all .docx files in the folder
-#     word_files = [f for f in os.listdir(folder_path) if f.endswith(".docx") and 'knowledge' not in f]
-
-#     # # Initialize ChromaDB client
-#     chromadb_client = chromadb.Client(path="./chroma_db")#PersistentClient
-#     db = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
-
-#     # Text splitter for chunking documents
-#     text_splitter = RecursiveCharacterTextSplitter(chunk_size=2500, chunk_overlap=250)
-
-#     # Process each Word document
-#     doc_id = 0
-#     for file_name in word_files:
-#         file_path = os.path.join(folder_path, file_name)
-#         print(f"Processing: {file_name}")
-        
-#         # Load and split text
-#         document_text = load_word_document(file_path)
-#         doc_chunks = text_splitter.split_text(document_text)
-        
-#         # Generate embeddings
-#         actual_embeddings = embeddings.embed_documents(doc_chunks)
-
-#         # Add to ChromaDB
-#         db.add(
-#             ids=[f"{doc_id}_{i}" for i in range(len(doc_chunks))],  # Unique IDs
-#             documents=doc_chunks,  # Text chunks
-#             embeddings=actual_embeddings  # Corresponding embeddings
-#         )
-
-#         doc_id += 1
-
-#     # print(f"Successfully added {len(word_files)} documents to ChromaDB!")
-
-#     treatment_selection = pd.read_csv('data/treatment_selection.csv')
-#     treatment_selection['content'] = treatment_selection['surgery_type'] + ' ' + treatment_selection['benefit'] + ' ' + treatment_selection['consideration'] + ' ' + treatment_selection['tag']
-#     texts = treatment_selection['content'].dropna().tolist()  # Remove NaN values and convert to a list
-        
-#     COLLECTION_NAME = "pictures_db"
-
-#     db1 = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
-
-#     # Text splitter for chunking documents
-#     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-
-#     # Process text into chunks and embeddings
-#     doc_id = 0
-#     for text in texts:
-#         chunks = text_splitter.split_text(text)  # Split text into smaller chunks
-#         actual_embeddings = embeddings.embed_documents(chunks)  # Generate embeddings
-        
-#         # Add chunks to ChromaDB
-#         db1.add(
-#             ids=[f"{doc_id}_{i}" for i in range(len(chunks))],  # Unique IDs
-#             documents=chunks,  # Text chunks
-#             embeddings=actual_embeddings  # Corresponding embeddings
-#         )
-        
-#         doc_id += 1
-#     return db, db1
-        
-# db, db1 = get_data()
 
 st.title('Voice2Choice Beta')
 
@@ -188,17 +173,18 @@ if option == 'Audio':
     if audio_value:
         recording = st.audio(audio_value)
         
-        st.subheader('Recommendation:')
         transcription = client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_value
         )
         scenario = transcription.text
+        # language = get_language(scenario)
+        # st.write(language)
         st.subheader('Consultation Scenario:')
         st.write(scenario)
         
         st.subheader('Recommendation:')
-        text_response = get_response(db, embeddings, scenario)
+        text_response = get_response(db, embeddings, scenario, True)
         st.write(text_response)
     
 elif option == 'Text':
@@ -207,10 +193,10 @@ elif option == 'Text':
             "Enter Patient Consultation Dialogue:"
         )
         submitted = st.form_submit_button("Submit")
-        
+        language = get_language(submitted)
         if submitted:
-            text_response = get_response(db, embeddings, scenario)
-            st.write(text_response)            
+            text_response = get_response(db, embeddings, scenario, False)
+            st.write(text_response)
 
 if text_response:
     st.markdown('You can view the treatment process here.')
