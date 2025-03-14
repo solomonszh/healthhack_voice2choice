@@ -1,5 +1,6 @@
 import streamlit as st
 import getpass
+import time
 import os
 from dotenv import load_dotenv
 
@@ -29,12 +30,14 @@ from docx import Document  # For reading .docx files
 #     text = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
 #     return text
 
-# import pandas as pd
+import pandas as pd
+
+import cv2  # We're using OpenCV to read video, to install !pip install opencv-python
 
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
-def get_response(main_db, main_embeddings, main_scenario, audio):
+def get_response(main_db, main_embeddings, main_scenario):
     f = open('data/knowledge.docx', 'r', encoding='ISO-8859-1')
     # query = "new technology"
     knowledge = f.read()
@@ -55,60 +58,33 @@ def get_response(main_db, main_embeddings, main_scenario, audio):
     # full_res = ''
     # for each_res in results['documents'][0]:
     #     full_res = full_res + '\n\n' +each_res
-    if audio:
-        completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system", 
-                "content": 
-                    f"""
-                    A medical doctor with domain knowledge in breast cancer after having trained with a wealth of knowledge in these topics: {knowledge}.
-                    Augment your data with results from {full_res}.
-                    """
-            },
-            {
-                "role": "user",
-                "content": 
-                    f"""
-                    Given patient's consultation with the doctor in this {main_scenario}, 
-                    1. compare a few potential treatments
-                    2. choose a final best recommendation
-                    3. provide justifications for the choice
-                    
-                    Keep answer in short sentences.
-                    Ensure it is transcribed to English. 
-                    """
-            }
-        ]
-    )
-    else:
-        completion = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": 
-                            f"""
-                            A medical doctor with domain knowledge in breast cancer after having trained with a wealth of knowledge in these topics: {knowledge}.
-                            Augment your data with results from {full_res}.
-                            """
-                    },
-                    {
-                        "role": "user",
-                        "content": 
-                            f"""
-                            Given patient's consultation with the doctor in this {main_scenario}, 
-                            1. compare a few potential treatments
-                            2. choose a final best recommendation
-                            3. provide justifications for the choice
-                            
-                            Keep answer in short sentences.
-                            Detect the language so that for example, if it is in Chinese, reply in Chinese
-                            """
-                    }
-                ]
-            )
+
+    completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system", 
+                    "content": 
+                        f"""
+                        A medical doctor with domain knowledge in breast cancer after having trained with a wealth of knowledge in these topics: {knowledge}.
+                        Augment your data with results from {full_res}.
+                        """
+                },
+                {
+                    "role": "user",
+                    "content": 
+                        f"""
+                        Given patient's consultation with the doctor in this {main_scenario}, 
+                        1. compare a few potential treatments
+                        2. choose a final best recommendation
+                        3. provide justifications for the choice
+                        
+                        Keep answer in short sentences.
+                        Detect and Reply in the same language so that for example, if it is in Chinese, reply in Chinese
+                        """
+                }
+            ]
+        )
                     
     response = completion.choices[0].message.content
     
@@ -138,7 +114,55 @@ def get_language(main_scenario):
     response = completion.choices[0].message.content
     
     return response
-         
+
+def stream_data(data_to_be_stream):
+    for word in data_to_be_stream.split(" "):
+        yield word + " "
+        time.sleep(0.35)
+
+def iso639_lookup(lang: str, reverse: bool = None, **junk) -> str:
+    """
+    OpenAI whisper ISO-639-1 language code utility or compatibility - 2024-02
+
+    :param lang: The language name or ISO-639-1 code to look up.
+    :param reverse: If True, find the language name from the ISO-639-1 code.
+                    If False or None, find the ISO-639-1 code from the language name.
+    :return: The ISO-639-1 code or language name if found, otherwise None.
+    """
+    iso639 = {  # 57 languages supported by OpenAI whisper-1
+    'afrikaans': 'af', 'arabic': 'ar', 'armenian': 'hy',
+    'azerbaijani': 'az', 'belarusian': 'be', 'bosnian': 'bs',
+    'bulgarian': 'bg', 'catalan': 'ca', 'chinese': 'zh',
+    'croatian': 'hr', 'czech': 'cs', 'danish': 'da',
+    'dutch': 'nl', 'english': 'en', 'estonian': 'et',
+    'finnish': 'fi', 'french': 'fr', 'galician': 'gl',
+    'german': 'de', 'greek': 'el', 'hebrew': 'he',
+    'hindi': 'hi', 'hungarian': 'hu', 'icelandic': 'is',
+    'indonesian': 'id', 'italian': 'it', 'japanese': 'ja',
+    'kannada': 'kn', 'kazakh': 'kk', 'korean': 'ko',
+    'latvian': 'lv', 'lithuanian': 'lt', 'macedonian': 'mk',
+    'malay': 'ms', 'maori': 'mi', 'marathi': 'mr',
+    'nepali': 'ne', 'norwegian': 'no', 'persian': 'fa',
+    'polish': 'pl', 'portuguese': 'pt', 'romanian': 'ro',
+    'russian': 'ru', 'serbian': 'sr', 'slovak': 'sk',
+    'slovenian': 'sl', 'spanish': 'es', 'swahili': 'sw',
+    'swedish': 'sv', 'tagalog': 'tl', 'tamil': 'ta',
+    'thai': 'th', 'turkish': 'tr', 'ukrainian': 'uk',
+    'urdu': 'ur', 'vietnamese': 'vi', 'welsh': 'cy'
+    }
+    if reverse:
+        if len(lang) != 2 or not lang.isalpha():
+            raise ValueError("ISO-639-1 abbreviation must be len=2 letters")
+        # Find the dict key by searching for the value
+        for language, abbreviation in iso639.items():
+            if abbreviation == lang.strip().lower():
+                return language
+        return None  # None if the code not found
+    else: 
+        # match input style to dict format, retrieve
+        formatted_lang = lang.strip().lower()
+        return iso639.get(formatted_lang)  # will be None for unmatched
+        
 text_response = ''
 language = 'English'
 username = 'demo'
@@ -161,13 +185,16 @@ db = IRISVector(
 st.title('Voice2Choice Beta')
 
 option = st.sidebar.selectbox(
-    'Audio or Text?',
-    ('Audio', 'Text'),
+    'Video or Audio or Text?',
+    ('Audio', 'Video', 'Text'),
 )
 
 st.write("You selected:", option)
 
 if option == 'Audio':
+    chosen_language = st.selectbox('Select Language:', ('English', 'Chinese', 'Japanese', 'Korean', 'Malay', 'Tamil'))
+    language_code = iso639_lookup(chosen_language)
+    
     audio_value = st.audio_input('Record the consultation dialogue.')
 
     if audio_value:
@@ -175,18 +202,46 @@ if option == 'Audio':
         
         transcription = client.audio.transcriptions.create(
             model="whisper-1",
-            file=audio_value
+            file=audio_value,
+            language=language_code
         )
         scenario = transcription.text
         # language = get_language(scenario)
         # st.write(language)
         st.subheader('Consultation Scenario:')
-        st.write(scenario)
+        # st.write(scenario)
+        st.write_stream(stream_data(scenario))
         
         st.subheader('Recommendation:')
-        text_response = get_response(db, embeddings, scenario, True)
+        text_response = get_response(db, embeddings, scenario)
         st.write(text_response)
+
+elif option == 'Video':
+    chosen_language = st.selectbox('Select Language:', ('English', 'Chinese', 'Japanese', 'Korean', 'Malay', 'Tamil'))
+    language_code = iso639_lookup(chosen_language)
     
+    video_file = open('data/consultation.mp4', 'rb')
+    video_bytes = video_file.read()
+         
+    transcription = client.audio.transcriptions.create(
+        model="whisper-1",
+        file=video_file,
+        language=language_code
+    )
+    scenario = transcription.text
+
+    st.video(video_bytes)
+
+    # language = get_language(scenario)
+    # st.write(language)
+    st.subheader('Consultation Scenario:')
+    # st.write(scenario)
+    st.write_stream(stream_data(scenario))
+    
+    st.subheader('Recommendation:')
+    text_response = get_response(db, embeddings, scenario)
+    st.write(text_response)
+
 elif option == 'Text':
     with st.form("my_form"):
         scenario = st.text_area(
@@ -195,7 +250,7 @@ elif option == 'Text':
         submitted = st.form_submit_button("Submit")
         language = get_language(submitted)
         if submitted:
-            text_response = get_response(db, embeddings, scenario, False)
+            text_response = get_response(db, embeddings, scenario)
             st.write(text_response)
 
 if text_response:
@@ -229,5 +284,23 @@ if text_response:
     # )
         
     # image_chosen = results["documents"][0][0].split(' ')[-1] + ".jpeg"        
-    
+
+    st.download_button(
+        label='Download Consultation Dialogue and Recommendation Report',
+        data=f'Based on {scenario}, \n\n, the Recommendation generally is {text_response}',
+        file_name='recommendation.txt',
+        # on_click='ignore',
+        # type='primary',
+        icon=':material/download:',
+    )
+        
     st.image(f'data/{image_chosen}')
+
+    with open(f'data/{image_chosen}', 'rb') as file:
+        st.download_button(
+            label='Download Image',
+            data=file,
+            file_name='recommendation.jpeg',
+            icon=':material/download:',
+            # mime='image/png',
+        )
