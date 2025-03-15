@@ -13,3 +13,10 @@ ipykernel
 setuptools
 chromadb
 streamlit
+langchain-community
+python-docx
+pandas
+numpy
+docx2txt
+spacy
+opencv-python
