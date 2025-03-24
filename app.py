@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-if not os.environ.get('OPENAI_API_KEY'): 
+if not os.environ.get('OPENAI_API_KEY'):
     os.environ['OPENAI_API_KEY'] = getpass.getpass('OpenAI API Key:')
 
 from openai import OpenAI
@@ -32,8 +32,6 @@ from docx import Document  # For reading .docx files
 
 import pandas as pd
 
-import cv2  # We're using OpenCV to read video, to install !pip install opencv-python
-
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
@@ -41,30 +39,30 @@ def get_response(main_db, main_embeddings, main_scenario):
     f = open('data/knowledge.docx', 'r', encoding='ISO-8859-1')
     # query = "new technology"
     knowledge = f.read()
-        
-    embedding_vector = main_embeddings.embed_query(main_scenario)
-    res = main_db.similarity_search_by_vector(embedding_vector)
 
-    # # Retrieve top 5 most similar results
-    # results = main_db.query(
-    #     query_embeddings=[embedding_vector],  # Query embedding
-    #     n_results=5  # Number of similar documents to retrieve
-    # )
+    embedding_vector = main_embeddings.embed_query(main_scenario)
+    # res = main_db.similarity_search_by_vector(embedding_vector)
+
+    # Retrieve top 5 most similar results
+    results = main_db.query(
+        query_embeddings=[embedding_vector],  # Query embedding
+        n_results=5  # Number of similar documents to retrieve
+    )
+
+    # full_res = ''
+    # for each_res in res:
+    #     full_res = full_res + '\n\n' +each_res.page_content
 
     full_res = ''
-    for each_res in res:
-        full_res = full_res + '\n\n' +each_res.page_content
-            
-    # full_res = ''
-    # for each_res in results['documents'][0]:
-    #     full_res = full_res + '\n\n' +each_res
+    for each_res in results['documents'][0]:
+        full_res = full_res + '\n\n' +each_res
 
     completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
-                    "role": "system", 
-                    "content": 
+                    "role": "system",
+                    "content":
                         f"""
                         A medical doctor with domain knowledge in breast cancer after having trained with a wealth of knowledge in these topics: {knowledge}.
                         Augment your data with results from {full_res}.
@@ -72,47 +70,47 @@ def get_response(main_db, main_embeddings, main_scenario):
                 },
                 {
                     "role": "user",
-                    "content": 
+                    "content":
                         f"""
-                        Given patient's consultation with the doctor in this {main_scenario}, 
+                        Given patient's consultation with the doctor in this {main_scenario},
                         1. compare a few potential treatments
                         2. choose a final best recommendation
                         3. provide justifications for the choice
-                        
+
                         Keep answer in short sentences.
                         Detect and Reply in the same language so that for example, if it is in Chinese, reply in Chinese
                         """
                 }
             ]
         )
-                    
+
     response = completion.choices[0].message.content
-    
+
     return response
- 
-def get_language(main_scenario):                        
+
+def get_language(main_scenario):
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
-                "role": "system", 
-                "content": 
+                "role": "system",
+                "content":
                     f"""
                     Language Detector
                     """
             },
             {
                 "role": "user",
-                "content": 
+                "content":
                     f"""
-                    Returns the language used in {main_scenario}, 
+                    Returns the language used in {main_scenario},
                     """
             }
         ]
     )
-    
+
     response = completion.choices[0].message.content
-    
+
     return response
 
 def stream_data(data_to_be_stream):
@@ -158,29 +156,21 @@ def iso639_lookup(lang: str, reverse: bool = None, **junk) -> str:
             if abbreviation == lang.strip().lower():
                 return language
         return None  # None if the code not found
-    else: 
+    else:
         # match input style to dict format, retrieve
         formatted_lang = lang.strip().lower()
         return iso639.get(formatted_lang)  # will be None for unmatched
-        
+
 text_response = ''
 language = 'English'
-username = 'demo'
-password = 'demo' 
-hostname = os.getenv('IRIS_HOSTNAME', 'localhost')
-port = '1972' 
-namespace = 'USER'
-CONNECTION_STRING = f'iris://{username}:{password}@{hostname}:{port}/{namespace}'
-# Under the hood, this becomes a SQL table. CANNOT have '.' in the name
+# Initialize ChromaDB client
+chromadb_client = chromadb.PersistentClient(path="./chroma_db")
 
-COLLECTION_NAME = 'cancer_db'
-# Subsequent calls to reconnect to the database and make searches should use this.  
-db = IRISVector(
-    embedding_function=embeddings,
-    dimension=1536,
-    collection_name=COLLECTION_NAME,
-    connection_string=CONNECTION_STRING,
-)
+COLLECTION_NAME = "cancer_db"
+db = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
+
+COLLECTION_NAME = "pictures_db"
+db1 = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
 
 st.title('Voice2Choice Beta')
 
@@ -194,12 +184,12 @@ st.write("You selected:", option)
 if option == 'Audio':
     chosen_language = st.selectbox('Select Language:', ('English', 'Chinese', 'Japanese', 'Korean', 'Malay', 'Tamil'))
     language_code = iso639_lookup(chosen_language)
-    
+
     audio_value = st.audio_input('Record the consultation dialogue.')
 
     if audio_value:
         recording = st.audio(audio_value)
-        
+
         transcription = client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_value,
@@ -211,7 +201,7 @@ if option == 'Audio':
         st.subheader('Consultation Scenario:')
         # st.write(scenario)
         st.write_stream(stream_data(scenario))
-        
+
         st.subheader('Recommendation:')
         text_response = get_response(db, embeddings, scenario)
         st.write(text_response)
@@ -219,10 +209,10 @@ if option == 'Audio':
 elif option == 'Video':
     chosen_language = st.selectbox('Select Language:', ('English', 'Chinese', 'Japanese', 'Korean', 'Malay', 'Tamil'))
     language_code = iso639_lookup(chosen_language)
-    
+
     video_file = open('data/consultation.mp4', 'rb')
     video_bytes = video_file.read()
-         
+
     transcription = client.audio.transcriptions.create(
         model="whisper-1",
         file=video_file,
@@ -237,7 +227,7 @@ elif option == 'Video':
     st.subheader('Consultation Scenario:')
     # st.write(scenario)
     st.write_stream(stream_data(scenario))
-    
+
     st.subheader('Recommendation:')
     text_response = get_response(db, embeddings, scenario)
     st.write(text_response)
@@ -256,34 +246,19 @@ elif option == 'Text':
 if text_response:
     st.markdown('You can view the treatment process here.')
 
-    loader = CSVLoader('data/treatment_selection.csv')#, csv_args={'fieldnames':['']})
-    docs = loader.load()
-    len(docs)
+    # docs_with_score = db1.similarity_search_with_score(text_response, 1)
+    # image_chosen = docs_with_score[0][0].page_content.split('\n')[-1].split(': ')[-1] + ".jpeg"
 
-    COLLECTION_NAME = "pictures_db"
-    # This creates a persistent vector store (a SQL table). You should run this ONCE only
-    db1 = IRISVector.from_documents(
-        embedding=embeddings,
-        documents=docs,
-        collection_name=COLLECTION_NAME,
-        connection_string=CONNECTION_STRING,
+    # Perform a similarity search
+    query_embedding = embeddings.embed_query(text_response)  # Generate embedding for the query
+
+    # Retrieve top 5 most similar results
+    results = db1.query(
+        query_embeddings=[query_embedding],  # Query embedding
+        n_results=1  # Number of similar documents to retrieve
     )
 
-    # print(f"Successfully added {len(texts)} rows (split into chunks) to ChromaDB!")    
-    
-    docs_with_score = db1.similarity_search_with_score(text_response, 1)
-    image_chosen = docs_with_score[0][0].page_content.split('\n')[-1].split(': ')[-1] + ".jpeg"
-    
-    # # Perform a similarity search
-    # query_embedding = embeddings.embed_query(text_response)  # Generate embedding for the query
-
-    # # Retrieve top 5 most similar results
-    # results = db1.query(
-    #     query_embeddings=[query_embedding],  # Query embedding
-    #     n_results=1  # Number of similar documents to retrieve
-    # )
-        
-    # image_chosen = results["documents"][0][0].split(' ')[-1] + ".jpeg"        
+    image_chosen = results["documents"][0][0].split(' ')[-1] + ".jpeg"
 
     st.download_button(
         label='Download Consultation Dialogue and Recommendation Report',
@@ -293,7 +268,7 @@ if text_response:
         # type='primary',
         icon=':material/download:',
     )
-        
+
     st.image(f'data/{image_chosen}')
 
     with open(f'data/{image_chosen}', 'rb') as file:
