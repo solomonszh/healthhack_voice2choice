@@ -20,4 +20,4 @@ numpy
 docx2txt
 spacy
 opencv-python
-sqlite3
+sqlite
