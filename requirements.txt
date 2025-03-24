@@ -4,8 +4,8 @@ llama-iris
 llama-index-legacy
 sentence-transformers
 langchain
-fastembed 
-openai 
+fastembed
+openai
 tiktoken
 python-dotenv
 pandas
@@ -20,3 +20,4 @@ numpy
 docx2txt
 spacy
 opencv-python
+sqlite3
