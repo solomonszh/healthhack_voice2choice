@@ -20,3 +20,4 @@ numpy
 docx2txt
 spacy
 opencv-python
+pysqlite-binary
