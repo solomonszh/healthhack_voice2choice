@@ -16,30 +16,79 @@ if not os.environ.get('OPENAI_API_KEY'):
 from openai import OpenAI
 
 from langchain.docstore.document import Document
-from langchain.document_loaders import TextLoader, Docx2txtLoader, DirectoryLoader, UnstructuredWordDocumentLoader, UnstructuredExcelLoader, CSVLoader
+from langchain_community.document_loaders import TextLoader, Docx2txtLoader, DirectoryLoader, UnstructuredWordDocumentLoader, UnstructuredExcelLoader, CSVLoader
 from langchain.text_splitter import CharacterTextSplitter, SpacyTextSplitter, RecursiveCharacterTextSplitter
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings
 
 from langchain_iris import IRISVector
 
 import os
 import chromadb
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from docx import Document  # For reading .docx files
 
-# # Function to extract text from a Word document
-# def load_word_document(file_path):
-#     doc = Document(file_path)
-#     text = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
-#     return text
-
 import pandas as pd
+
+from pydantic import BaseModel
+
+class Options(BaseModel):
+    option1: str
+    option2: str
+    option3: str
 
 client = OpenAI()
 embeddings = OpenAIEmbeddings()
 
-def get_response(main_db, main_embeddings, main_scenario):
+def get_request(main_scenario):
+    completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content":
+                        f"""
+                        Answer Yes or No if related to breast cancer.
+                        """
+                },
+                {
+                    "role": "user",
+                    "content":
+                        f"""
+                        Is this about breast cancer? {main_scenario}
+                        """
+                }
+            ]
+        )
+
+    response = completion.choices[0].message.content.lower()
+
+    return response
+
+def get_language(main_scenario):
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content":
+                    f"""
+                    Language Detector
+                    """
+            },
+            {
+                "role": "user",
+                "content":
+                    f"""
+                    Returns a single word language used in {main_scenario},
+                    """
+            }
+        ]
+    )
+
+    response = completion.choices[0].message.content
+
+    return response
+
+def get_response(main_db, main_embeddings, main_scenario, final_language='English'):
     f = open('data/knowledge.docx', 'r', encoding='ISO-8859-1')
     # query = "new technology"
     knowledge = f.read()
@@ -82,36 +131,11 @@ def get_response(main_db, main_embeddings, main_scenario):
                         3. provide justifications for the choice
 
                         Keep answer in short sentences.
-                        Detect and Reply in the same language so that for example, if it is in Chinese, reply in Chinese
+                        Reply in {final_language}
                         """
                 }
             ]
         )
-
-    response = completion.choices[0].message.content
-
-    return response
-
-def get_language(main_scenario):
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content":
-                    f"""
-                    Language Detector
-                    """
-            },
-            {
-                "role": "user",
-                "content":
-                    f"""
-                    Returns the language used in {main_scenario},
-                    """
-            }
-        ]
-    )
 
     response = completion.choices[0].message.content
 
@@ -178,7 +202,7 @@ def generate():
     folder_path = "data"  # Change this to your actual folder path
 
     # List all .docx files in the folder
-    word_files = [f for f in os.listdir(folder_path) if f.endswith(".docx") and 'knowledge' not in f]
+    word_files = [f for f in os.listdir(folder_path) if f.endswith(".docx") and ('knowledge' not in f) and ('content' not in f)]
 
     # Initialize ChromaDB client
     chromadb_client = chromadb.PersistentClient(path="./chroma_db")
@@ -241,24 +265,51 @@ def generate():
 
     return db, db1
 
-text_response = ''
-language = 'English'
-# # Initialize ChromaDB client
-# chromadb_client = chromadb.PersistentClient(path="./chroma_db")
+@st.cache_data
+def get_new_options(convo):
+    f = open('data/knowledge.docx', 'r', encoding='ISO-8859-1')
+    # query = "new technology"
+    knowledge = f.read()
 
-# COLLECTION_NAME = "cancer_db"
-# db = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
+    f = open('data/academia.docx', 'r', encoding='ISO-8859-1')
+    # query = "new technology"
+    academia = f.read()
 
-# COLLECTION_NAME = "pictures_db"
-# db1 = chromadb_client.get_or_create_collection(name=COLLECTION_NAME)
+    completion = client.beta.chat.completions.parse(
+        model=st.session_state["openai_model"],
+        messages=[
+            {
+                "role": "system",
+                "content":
+                    f"""
+                    A breast cancer doctor trained deeply in {knowledge} and {academia}.
+                    """
+            },
+            {
+                "role": "user",
+                "content":
+                    f"""
+                    Based on the latest conversation content below, give 3 follow-up questions from patient's perspectives to aid patient:
+                    {convo}
+                    """
+            }
+        ],
+        response_format=Options
+    )
+    response = completion.choices[0].message.parsed
+    return [response.option1, response.option2, response.option3]
 
-db, db1 = generate()
 
 st.title('Voice2Choice Beta')
 
+text_response = ''
+language = 'English'
+avail_options = ['How are you feeling today?', 'How can I help you today?', 'Do you need something?']
+db, db1 = generate()
+
 option = st.sidebar.selectbox(
     'Video or Audio or Text?',
-    ('Audio', 'Video', 'Text'),
+    ('Audio', 'Video', 'Textual Dialogue/Diagnosis', 'Textual Chat'),
 )
 
 st.write("You selected:", option)
@@ -284,9 +335,25 @@ if option == 'Audio':
         # st.write(scenario)
         st.write_stream(stream_data(scenario))
 
+        yes_or_no = get_request(scenario)
         st.subheader('Recommendation:')
-        text_response = get_response(db, embeddings, scenario)
-        st.write(text_response)
+        if yes_or_no == 'yes':
+            text_response = get_response(db, embeddings, scenario, chosen_language)
+            st.write(text_response)
+        else:
+            completion = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content":
+                                f"""
+                                Inform user that more information is needed to provide analysis in {chosen_language}.
+                                """
+                        },
+                    ]
+                )
+            st.write(completion.choices[0].message.content)
 
 elif option == 'Video':
     chosen_language = st.selectbox('Select Language:', ('English', 'Chinese', 'Japanese', 'Korean', 'Malay', 'Tamil'))
@@ -310,26 +377,162 @@ elif option == 'Video':
     # st.write(scenario)
     st.write_stream(stream_data(scenario))
 
+    st.download_button(
+        label='Download Consultation Dialogue and Recommendation Report',
+        data=f'Based on {scenario}, \n\n, the Recommendation generally is {text_response}',
+        file_name='recommendation.txt',
+        # on_click='ignore',
+        # type='primary',
+        icon=':material/download:',
+    )
+
     st.subheader('Recommendation:')
-    text_response = get_response(db, embeddings, scenario)
+    text_response = get_response(db, embeddings, scenario, chosen_language)
     st.write(text_response)
 
-elif option == 'Text':
+elif option == 'Textual Dialogue/Diagnosis':
     with st.form("my_form"):
         scenario = st.text_area(
             "Enter Patient Consultation Dialogue:"
         )
         submitted = st.form_submit_button("Submit")
-        language = get_language(submitted)
+
         if submitted:
-            text_response = get_response(db, embeddings, scenario)
-            st.write(text_response)
+            language = get_language(scenario).capitalize()
+            if scenario.lower() == 'hi':
+                language = 'English'
+            yes_or_no = get_request(scenario)
+            st.subheader('Recommendation:')
+            if yes_or_no == 'yes':
+                text_response = get_response(db, embeddings, scenario, language)
+                st.write(text_response)
+            else:
+                completion = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content":
+                                    f"""
+                                    Inform user that more information is needed to provide analysis in {language}.
+                                    """
+                            },
+                        ]
+                    )
+                st.write(completion.choices[0].message.content)
+
+elif option == 'Textual Chat':
+    st.markdown(
+                """
+            <style>
+                .st-emotion-cache-1c7y2kd {
+                    flex-direction: row-reverse;
+                    text-align: left;
+                }
+            </style>
+            """,
+                unsafe_allow_html=True,
+            )
+
+    # Initialize session state for prompt selection
+    if 'prompt_selection' not in st.session_state:
+        st.session_state.prompt_selection = ""
+
+    if "openai_model" not in st.session_state:
+        st.session_state["openai_model"] = "gpt-4o-mini"
+
+    if 'chat_messages' not in st.session_state:
+        st.session_state.chat_messages = []
+
+    for message in st.session_state.chat_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    latest_convo = ''
+    for convo in st.session_state.chat_messages[-2:]:
+        latest_convo += convo['content']
+        latest_convo += '\n\n'
+
+    avail_options = get_new_options(latest_convo)
+    prompt_selection = st.pills("Prompt suggestions", avail_options, selection_mode="single", label_visibility='hidden')
+
+    input_prompt = st.chat_input("Type your message here...")
+
+    # Get the selected prompt only if it has changed
+    def get_prompt_selection():
+        global prompt_selection
+        if prompt_selection == None:
+            return None
+        elif prompt_selection == st.session_state.prompt_selection:
+            return None
+        else:
+            st.session_state.prompt_selection = prompt_selection
+
+        return prompt_selection
+
+    if prompt_selection := get_prompt_selection():
+        st.session_state.chat_messages.append({"role": "user", "content": str(prompt_selection)})
+
+        with st.chat_message("user"):
+            st.markdown(str(prompt_selection))
+
+        with st.chat_message("assistant"):
+            stream = client.chat.completions.create(
+                model=st.session_state["openai_model"],
+                messages=[
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.chat_messages
+                ],
+                stream=True,
+            )
+            response = st.write_stream(stream)
+            print(response, 'here')
+        st.session_state.chat_messages.append({"role": "assistant", "content": response})
+
+        # Trigger a rerun to update the chat messages
+        st.rerun()
+
+    if input_prompt:
+        st.session_state.chat_messages.append({"role": "user", "content": input_prompt})
+
+        with st.chat_message("user"):
+            st.markdown(input_prompt)
+
+        if 'image' in input_prompt.lower():
+            # Perform a similarity search
+            query_embedding = embeddings.embed_query(input_prompt)  # Generate embedding for the query
+
+            # Retrieve top 5 most similar results
+            results = db1.query(
+                query_embeddings=[query_embedding],  # Query embedding
+                n_results=1  # Number of similar documents to retrieve
+            )
+
+            image_chosen = results["documents"][0][0].split(' ')[-1] + ".jpeg"
+
+            st.image(f'data/{image_chosen}')
+        else:
+            with st.chat_message("assistant"):
+                stream = client.chat.completions.create(
+                    model=st.session_state["openai_model"],
+                    messages=[
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state.chat_messages
+                    ],
+                    stream=True,
+                )
+                response = st.write_stream(stream)
+
+            st.session_state.chat_messages.append({"role": "assistant", "content": response})
+
+            # Trigger a rerun to update the chat messages
+            st.rerun()
 
 if text_response:
-    st.markdown('You can view the treatment process here.')
-
     # docs_with_score = db1.similarity_search_with_score(text_response, 1)
     # image_chosen = docs_with_score[0][0].page_content.split('\n')[-1].split(': ')[-1] + ".jpeg"
+
+    st.markdown('You can view the treatment process here.')
 
     # Perform a similarity search
     query_embedding = embeddings.embed_query(text_response)  # Generate embedding for the query
@@ -341,15 +544,6 @@ if text_response:
     )
 
     image_chosen = results["documents"][0][0].split(' ')[-1] + ".jpeg"
-
-    st.download_button(
-        label='Download Consultation Dialogue and Recommendation Report',
-        data=f'Based on {scenario}, \n\n, the Recommendation generally is {text_response}',
-        file_name='recommendation.txt',
-        # on_click='ignore',
-        # type='primary',
-        icon=':material/download:',
-    )
 
     st.image(f'data/{image_chosen}')
 
