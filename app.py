@@ -88,10 +88,35 @@ def get_language(main_scenario):
 
     return response
 
-def get_response(main_db, main_embeddings, main_scenario, final_language='English'):
+def get_response(main_db, main_embeddings, main_scenario, mini_scenario=None, final_language='English'):
     f = open('data/knowledge.docx', 'r', encoding='ISO-8859-1')
     # query = "new technology"
     knowledge = f.read()
+
+    if mini_scenario:
+        completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content":
+                            f"""
+                            A medical doctor with domain knowledge in breast cancer after having trained with a wealth of knowledge in these topics: {knowledge}.
+                            """
+                    },
+                    {
+                        "role": "user",
+                        "content":
+                            f"""
+                            1. Decide whether speaker 1 who said {main_scenario} or speaker 2 who said {mini_scenario} is the main patient
+                            2. Ignore the non-patient speaker and only focus on the main patient speaker
+                            3. Summarize the main patient speaker
+                            """
+                    }
+                ]
+            )
+
+        main_scenario = completion.choices[0].message.content
 
     embedding_vector = main_embeddings.embed_query(main_scenario)
     # res = main_db.similarity_search_by_vector(embedding_vector)
@@ -139,7 +164,10 @@ def get_response(main_db, main_embeddings, main_scenario, final_language='Englis
 
     response = completion.choices[0].message.content
 
-    return response
+    if mini_scenario:
+        return response, main_scenario
+    else:
+        return response
 
 def stream_data(data_to_be_stream):
     for word in data_to_be_stream.split(" "):
@@ -326,19 +354,36 @@ if option == 'Audio':
         transcription = client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_value,
-            language=language_code
+            language=language_code,
+            response_format="verbose_json",
+            timestamp_granularities=["segment"]
         )
+        speaker1 = ''
+        speaker2 = ''
+        count=1
+        st.subheader('Consultation Scenario:')
+        for segment in transcription.segments:
+            st.write_stream(stream_data(f'Speaker{count}: '+segment.text))
+            if count==1:
+                speaker1+=segment.text
+                speaker1+='\n\n'
+                count=2
+            else:
+                speaker2+=segment.text
+                speaker2+='\n\n'
+                count=1
         scenario = transcription.text
         # language = get_language(scenario)
         # st.write(language)
-        st.subheader('Consultation Scenario:')
-        # st.write(scenario)
-        st.write_stream(stream_data(scenario))
+        # st.subheader('Consultation Scenario:')
+        # st.write_stream(stream_data(scenario))
 
         yes_or_no = get_request(scenario)
         st.subheader('Recommendation:')
         if yes_or_no == 'yes':
-            text_response = get_response(db, embeddings, scenario, chosen_language)
+            # text_response = get_response(db, embeddings, scenario, chosen_language)
+            text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
+            st.write(main_scenario)
             st.write(text_response)
         else:
             completion = client.chat.completions.create(
@@ -362,20 +407,36 @@ elif option == 'Video':
     video_file = open('data/consultation.mp4', 'rb')
     video_bytes = video_file.read()
 
+    st.video(video_bytes)
+
     transcription = client.audio.transcriptions.create(
         model="whisper-1",
         file=video_file,
-        language=language_code
-    )
-    scenario = transcription.text
+        language=language_code,
+        response_format="verbose_json",
+        timestamp_granularities=["segment"]
 
-    st.video(video_bytes)
+    )
+    speaker1 = ''
+    speaker2 = ''
+    count=1
+    st.subheader('Consultation Scenario:')
+    for segment in transcription.segments:
+        st.write_stream(stream_data(f'Speaker{count}: '+segment.text))
+        if count==1:
+            speaker1+=segment.text
+            speaker1+='\n\n'
+            count=2
+        else:
+            speaker2+=segment.text
+            speaker2+='\n\n'
+            count=1
+    scenario = transcription.text
 
     # language = get_language(scenario)
     # st.write(language)
-    st.subheader('Consultation Scenario:')
-    # st.write(scenario)
-    st.write_stream(stream_data(scenario))
+    # st.subheader('Consultation Scenario:')
+    # st.write_stream(stream_data(scenario))
 
     st.download_button(
         label='Download Consultation Dialogue and Recommendation Report',
@@ -387,7 +448,9 @@ elif option == 'Video':
     )
 
     st.subheader('Recommendation:')
-    text_response = get_response(db, embeddings, scenario, chosen_language)
+    # text_response = get_response(db, embeddings, scenario, chosen_language)
+    text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
+    st.write(main_scenario)
     st.write(text_response)
 
 elif option == 'Textual Dialogue/Diagnosis':
