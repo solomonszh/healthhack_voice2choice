@@ -599,8 +599,7 @@ if text_response:
     # image_chosen = docs_with_score[0][0].page_content.split('\n')[-1].split(': ')[-1] + ".jpeg"
 
     st.markdown('You can view the treatment process here.')
-    print(text_response)
-    st.write(text_response)
+
     # Perform a similarity search
     query_embedding = embeddings.embed_query(text_response)  # Generate embedding for the query
 
