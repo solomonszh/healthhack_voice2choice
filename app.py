@@ -172,7 +172,7 @@ def get_response(main_db, main_embeddings, main_scenario, mini_scenario=None, fi
 def stream_data(data_to_be_stream):
     for word in data_to_be_stream.split(" "):
         yield word + " "
-        time.sleep(0.35)
+        time.sleep(0.3)
 
 def iso639_lookup(lang: str, reverse: bool = None, **junk) -> str:
     """
@@ -327,6 +327,8 @@ def get_new_options(convo):
     response = completion.choices[0].message.parsed
     return [response.option1, response.option2, response.option3]
 
+if "reset" not in st.session_state:
+    st.session_state.reset = False
 
 st.title('Voice2Choice Beta')
 
@@ -343,62 +345,64 @@ option = st.sidebar.selectbox(
 st.write("You selected:", option)
 
 if option == 'Audio':
-    chosen_language = st.selectbox('Select Language:', ('English', 'Chinese', 'Japanese', 'Korean', 'Malay', 'Tamil'))
-    language_code = iso639_lookup(chosen_language)
+    while True:
+        chosen_language = st.selectbox('Select Language:', ('English', 'Chinese', 'Japanese', 'Korean', 'Malay', 'Tamil'))
+        language_code = iso639_lookup(chosen_language)
 
-    audio_value = st.audio_input('Record the consultation dialogue.')
+        audio_value = st.audio_input('Record the consultation dialogue.')
 
-    if audio_value:
-        recording = st.audio(audio_value)
+        if audio_value:
+            recording = st.audio(audio_value)
 
-        transcription = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_value,
-            language=language_code,
-            response_format="verbose_json",
-            timestamp_granularities=["segment"]
-        )
-        speaker1 = ''
-        speaker2 = ''
-        count=1
-        st.subheader('Consultation Scenario:')
-        for segment in transcription.segments:
-            st.write_stream(stream_data(f'Speaker{count}: '+segment.text))
-            if count==1:
-                speaker1+=segment.text
-                speaker1+='\n\n'
-                count=2
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_value,
+                language=language_code,
+                response_format="verbose_json",
+                # timestamp_granularities=["segment"]
+            )
+            # speaker1 = ''
+            # speaker2 = ''
+            # count=1
+            # st.subheader('Consultation Scenario:')
+            # for segment in transcription.segments:
+            #     st.write_stream(stream_data(f'Speaker{count}: '+segment.text))
+            #     if count==1:
+            #         speaker1+=segment.text
+            #         speaker1+='\n\n'
+            #         count=2
+            #     else:
+            #         speaker2+=segment.text
+            #         speaker2+='\n\n'
+            #         count=1
+            scenario = transcription.text
+            # language = get_language(scenario)
+            # st.write(language)
+            st.subheader('Consultation Scenario:')
+            st.write_stream(stream_data(scenario))
+
+            yes_or_no = get_request(scenario)
+            st.subheader('Recommendation:')
+            if yes_or_no == 'yes':
+                # text_response = get_response(db, embeddings, scenario, chosen_language)
+                text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
+                st.write(main_scenario)
+                st.write(text_response)
             else:
-                speaker2+=segment.text
-                speaker2+='\n\n'
-                count=1
-        scenario = transcription.text
-        # language = get_language(scenario)
-        # st.write(language)
-        # st.subheader('Consultation Scenario:')
-        # st.write_stream(stream_data(scenario))
-
-        yes_or_no = get_request(scenario)
-        st.subheader('Recommendation:')
-        if yes_or_no == 'yes':
-            # text_response = get_response(db, embeddings, scenario, chosen_language)
-            text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
-            st.write(main_scenario)
-            st.write(text_response)
-        else:
-            completion = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content":
-                                f"""
-                                Inform user that more information is needed to provide analysis in {chosen_language}.
-                                """
-                        },
-                    ]
-                )
-            st.write(completion.choices[0].message.content)
+                completion = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content":
+                                    f"""
+                                    Inform user that more information is needed to provide analysis in {chosen_language}.
+                                    """
+                            },
+                        ]
+                    )
+                st.write(completion.choices[0].message.content)
+        break
 
 elif option == 'Video':
     chosen_language = st.selectbox('Select Language:', ('English', 'Chinese', 'Japanese', 'Korean', 'Malay', 'Tamil'))
@@ -414,29 +418,28 @@ elif option == 'Video':
         file=video_file,
         language=language_code,
         response_format="verbose_json",
-        timestamp_granularities=["segment"]
+        # timestamp_granularities=["segment"]
 
     )
-    speaker1 = ''
-    speaker2 = ''
-    count=1
-    st.subheader('Consultation Scenario:')
-    for segment in transcription.segments:
-        st.write_stream(stream_data(f'Speaker{count}: '+segment.text))
-        if count==1:
-            speaker1+=segment.text
-            speaker1+='\n\n'
-            count=2
-        else:
-            speaker2+=segment.text
-            speaker2+='\n\n'
-            count=1
+    # speaker1 = ''
+    # speaker2 = ''
+    # count=1
+    # st.subheader('Consultation Scenario:')
+    # for segment in transcription.segments:
+    #     st.write_stream(stream_data(f'Speaker{count}: '+segment.text))
+    #     if count==1:
+    #         speaker1+=segment.text
+    #         speaker1+='\n\n'
+    #         count=2
+    #     else:
+    #         speaker2+=segment.text
+    #         speaker2+='\n\n'
+    #         count=1
     scenario = transcription.text
-
     # language = get_language(scenario)
     # st.write(language)
-    # st.subheader('Consultation Scenario:')
-    # st.write_stream(stream_data(scenario))
+    st.subheader('Consultation Scenario:')
+    st.write_stream(stream_data(scenario))
 
     st.download_button(
         label='Download Consultation Dialogue and Recommendation Report',
