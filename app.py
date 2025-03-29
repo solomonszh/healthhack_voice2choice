@@ -164,10 +164,10 @@ def get_response(main_db, main_embeddings, main_scenario, mini_scenario=None, fi
 
     response = completion.choices[0].message.content
 
-    if mini_scenario:
-        return response, main_scenario
-    else:
-        return response
+    # if mini_scenario:
+    #     return response, main_scenario
+    # else:
+    return response
 
 def stream_data(data_to_be_stream):
     for word in data_to_be_stream.split(" "):
@@ -384,7 +384,7 @@ if option == 'Audio':
             yes_or_no = get_request(scenario)
             st.subheader('Recommendation:')
             if yes_or_no == 'yes':
-                text_response = get_response(db, embeddings, scenario, chosen_language)
+                text_response = get_response(db, embeddings, scenario, final_language=chosen_language)
                 # text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
                 # st.write(main_scenario)
                 st.write(text_response)
@@ -451,7 +451,7 @@ elif option == 'Video':
     )
 
     st.subheader('Recommendation:')
-    text_response = get_response(db, embeddings, scenario, chosen_language)
+    text_response = get_response(db, embeddings, scenario, final_language=chosen_language)
     # text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
     # st.write(main_scenario)
     st.write(text_response)
@@ -599,7 +599,8 @@ if text_response:
     # image_chosen = docs_with_score[0][0].page_content.split('\n')[-1].split(': ')[-1] + ".jpeg"
 
     st.markdown('You can view the treatment process here.')
-
+    print(text_response)
+    st.write(text_response)
     # Perform a similarity search
     query_embedding = embeddings.embed_query(text_response)  # Generate embedding for the query
 
