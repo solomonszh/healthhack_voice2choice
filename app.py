@@ -384,9 +384,9 @@ if option == 'Audio':
             yes_or_no = get_request(scenario)
             st.subheader('Recommendation:')
             if yes_or_no == 'yes':
-                # text_response = get_response(db, embeddings, scenario, chosen_language)
-                text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
-                st.write(main_scenario)
+                text_response = get_response(db, embeddings, scenario, chosen_language)
+                # text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
+                # st.write(main_scenario)
                 st.write(text_response)
             else:
                 completion = client.chat.completions.create(
@@ -451,9 +451,9 @@ elif option == 'Video':
     )
 
     st.subheader('Recommendation:')
-    # text_response = get_response(db, embeddings, scenario, chosen_language)
-    text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
-    st.write(main_scenario)
+    text_response = get_response(db, embeddings, scenario, chosen_language)
+    # text_response, main_scenario = get_response(db, embeddings, speaker1, speaker2, chosen_language)
+    # st.write(main_scenario)
     st.write(text_response)
 
 elif option == 'Textual Dialogue/Diagnosis':
