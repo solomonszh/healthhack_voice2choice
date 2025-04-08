@@ -10,7 +10,6 @@ tiktoken
 python-dotenv
 pandas
 ipykernel
-setuptools
 chromadb
 streamlit
 langchain-community
@@ -21,3 +20,4 @@ docx2txt
 spacy
 opencv-python
 pysqlite-binary
+setuptools
